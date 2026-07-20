@@ -229,8 +229,7 @@
   @media (max-width:600px){
     h1{ font-size:34px; }
     .hero{ padding:48px 20px 40px; }
-    .card{ width:160px; }
-    .card img{ height:160px; }
+    .card img{ height:160px; max-width:240px; }
   }
 </style>
 </head>
@@ -331,8 +330,15 @@
     production: productionImages
   };
 
-  // How many cards are visible at once in each row.
-  const VISIBLE_COUNT = 4;
+  // How many cards are visible at once — fewer on narrow phone
+  // screens so images don't crowd or overlap, more on desktop.
+  function getVisibleCount(){
+    const w = window.innerWidth;
+    if(w < 480) return 1;
+    if(w < 700) return 2;
+    if(w < 960) return 3;
+    return 4;
+  }
 
   // Tracks which index each row currently starts at.
   const carouselStart = { design: 0, production: 0 };
@@ -343,9 +349,10 @@
     const container = document.getElementById(containerIds[galleryName]);
     const items = galleries[galleryName];
     const start = carouselStart[galleryName];
+    const visibleCount = getVisibleCount();
 
     let html = "";
-    for(let i = 0; i < VISIBLE_COUNT; i++){
+    for(let i = 0; i < visibleCount; i++){
       const idx = (start + i) % items.length;
       const src = items[idx];
       html += `
@@ -437,10 +444,64 @@
     }, { passive: false });
   }
 
+  // Finger swipe support for touch devices — one swipe left or right
+  // steps the carousel exactly like a click, and it only fires once
+  // the swipe finishes (not mid-drag), so it can't misfire or double-step.
+  function enableTouchSwipe(containerId){
+    const container = document.getElementById(containerId);
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    container.addEventListener("touchstart", function(e){
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+
+    container.addEventListener("touchmove", function(e){
+      if(!tracking) return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      // Only take over the gesture (block vertical page scroll) once
+      // it's clearly a horizontal swipe, not a vertical scroll attempt.
+      if(Math.abs(dx) > Math.abs(dy)){
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    container.addEventListener("touchend", function(e){
+      if(!tracking) return;
+      tracking = false;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const dx = endX - startX;
+      const dy = endY - startY;
+
+      if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40){
+        scrollCarousel(containerId, dx < 0 ? 1 : -1);
+      }
+    });
+  }
+
   renderCarousel("design");
   renderCarousel("production");
   enableDragScroll("design-carousel");
   enableDragScroll("production-carousel");
+  enableTouchSwipe("design-carousel");
+  enableTouchSwipe("production-carousel");
+
+  // Re-render both rows if the window is resized across one of the
+  // breakpoints in getVisibleCount, so the number of visible cards
+  // stays correct (e.g. rotating a phone, or resizing a browser window).
+  let resizeTimer;
+  window.addEventListener("resize", function(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      renderCarousel("design");
+      renderCarousel("production");
+    }, 200);
+  });
 </script>
 
 </body>
