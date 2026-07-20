@@ -105,29 +105,22 @@
   .carousel{
     display:flex;
     gap:20px;
-    overflow-x:auto;
-    scroll-behavior:smooth;
+    overflow-x:hidden;
     padding:4px 44px 8px;
-    scrollbar-width:none;
-  }
-
-  .carousel::-webkit-scrollbar{
-    display:none;
   }
 
   .card{
     flex:0 0 auto;
-    width:210px;
   }
 
   .card img{
-    width:100%;
     height:210px;
+    width:auto;
+    max-width:320px;
     object-fit:contain;
     border-radius:10px;
     border:1px solid var(--line);
     display:block;
-    background:#f2f1ee;
     cursor:pointer;
   }
 
@@ -165,12 +158,29 @@
     border:none;
   }
 
-  .card .caption{
-    margin-top:10px;
-    font-size:12.5px;
-    line-height:1.5;
-    color:var(--muted);
+  .lightbox-arrow{
+    position:absolute;
+    top:50%;
+    transform:translateY(-50%);
+    width:48px;
+    height:48px;
+    border-radius:50%;
+    border:none;
+    background:rgba(255,255,255,0.15);
+    color:#fff;
+    font-size:26px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
   }
+
+  .lightbox-arrow:hover{
+    background:rgba(255,255,255,0.28);
+  }
+
+  .lightbox-prev{ left:24px; }
+  .lightbox-next{ right:24px; }
 
   .arrow{
     flex:0 0 auto;
@@ -263,60 +273,108 @@
 <!-- ---------- Lightbox overlay ---------- -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
   <button class="lightbox-close" onclick="closeLightbox(event)">&times;</button>
+  <button class="lightbox-arrow lightbox-prev" onclick="navigateLightbox(event, -1)">&#8249;</button>
   <img id="lightbox-img" src="" alt="">
+  <button class="lightbox-arrow lightbox-next" onclick="navigateLightbox(event, 1)">&#8250;</button>
 </div>
 
 <script>
   /* =====================================================================
      EDIT YOUR IMAGES HERE.
-     Add or remove as many objects as you want in each array — the
-     carousel automatically adjusts to however many you list.
-
-     src: path to your image file (see notes at the bottom of this file
-          for how to add images to your project folder)
-     caption: short line under the image (e.g. project name, year, role)
+     Add or remove as many filenames as you want in each list — the
+     carousel automatically adjusts to however many you list. Each
+     entry is just the image's filename (matching whatever you've
+     uploaded to the repo).
   ===================================================================== */
 
   const designImages = [
-    { src: "01 Artist Directory.jpg", caption: "Artist Directory" },
-    { src: "02 Saturn Returns.jpg", caption: "Saturn Returns" },
-    { src: "ColorControl.jpg", caption: "Color Control" },
-    { src: "Golden Ball.jpg", caption: "Golden Ball" },
-    { src: "KYZ-BL-Announcement.jpg", caption: "Kyzen Announcement" },
-    { src: "MemoryModz_ComingSoon.jpg", caption: "Merry Modz, coming soon" },
-    { src: "MerryModz_Merry Christmas.png", caption: "Merry Modz, holiday" },
-    { src: "Slingawave-web-1.jpg", caption: "Slingwave, web 1" },
-    { src: "Slingawave-web-2.jpg", caption: "Slingwave, web 2" },
-    { src: "Slingwave-shoptalk.jpg", caption: "Slingwave, shop talk" },
-    { src: "Slingwave-social.jpg", caption: "Slingwave, social" },
-    { src: "magazine-SUFF-title.jpg", caption: "Magazine, title spread" },
-    { src: "magazine-SUFF03.jpg", caption: "Magazine, spread 03" }
+    "01 Artist Directory.jpg",
+    "02 Saturn Returns.jpg",
+    "ColorControl.jpg",
+    "Golden Ball.jpg",
+    "KYZ-BL-Announcement.jpg",
+    "MemoryModz_ComingSoon.jpg",
+    "MerryModz_Merry Christmas.png",
+    "Slingawave-web-1.jpg",
+    "Slingawave-web-2.jpg",
+    "Slingwave-shoptalk.jpg",
+    "Slingwave-social.jpg",
+    "magazine-SUFF-title.jpg",
+    "magazine-SUFF03.jpg"
   ];
 
   /* Production images below are still placeholders — swap in your own
      the same way, following the pattern above. */
   const productionImages = [
-    { src: "images/production-01.jpg", caption: "Project name, year" },
-    { src: "images/production-02.jpg", caption: "Project name, year" },
-    { src: "images/production-03.jpg", caption: "Project name, year" },
-    { src: "images/production-04.jpg", caption: "Project name, year" }
+    "zenith-photography.jpeg",
+    "zenith-exhibit-2.jpg",
+    "zenith-exhibit-1.jpg",
+    "tyler-hubby-issue-7-1.jpg",
+    "sovo-styling.jpg",
+    "sovo-installation.jpg",
+    "sovo-costume.jpg",
+    "sovo-bts.jpg",
+    "gallery-2.jpg",
+    "gallery-1.jpg"
   ];
 
   /* ===================================================================== */
 
-  function renderCarousel(containerId, items){
-    const container = document.getElementById(containerId);
-    container.innerHTML = items.map(item => `
-      <div class="card">
-        <img src="${item.src}" alt="${item.caption}" loading="lazy" onclick="openLightbox('${item.src}', '${item.caption.replace(/'/g, "\\'")}')">
-        <div class="caption">${item.caption}</div>
-      </div>
-    `).join("");
+  const galleries = {
+    design: designImages,
+    production: productionImages
+  };
+
+  // How many cards are visible at once in each row.
+  const VISIBLE_COUNT = 4;
+
+  // Tracks which index each row currently starts at.
+  const carouselStart = { design: 0, production: 0 };
+
+  const containerIds = { design: "design-carousel", production: "production-carousel" };
+
+  function renderCarousel(galleryName){
+    const container = document.getElementById(containerIds[galleryName]);
+    const items = galleries[galleryName];
+    const start = carouselStart[galleryName];
+
+    let html = "";
+    for(let i = 0; i < VISIBLE_COUNT; i++){
+      const idx = (start + i) % items.length;
+      const src = items[idx];
+      html += `
+        <div class="card">
+          <img src="${src}" alt="" loading="lazy" onclick="openLightbox('${galleryName}', ${idx})">
+        </div>
+      `;
+    }
+    container.innerHTML = html;
   }
 
-  function openLightbox(src, caption){
+  // Moving left or right just shifts which index the row starts at,
+  // wrapping around with modulo. No scrolling, no animation — the
+  // visible cards are simply swapped instantly, so it can loop through
+  // the same set endlessly in either direction, from the very first click.
+  function scrollCarousel(containerId, direction){
+    const galleryName = containerId.startsWith("design") ? "design" : "production";
+    const items = galleries[galleryName];
+    carouselStart[galleryName] = (carouselStart[galleryName] + direction + items.length) % items.length;
+    renderCarousel(galleryName);
+  }
+
+  let currentGallery = null;
+  let currentIndex = 0;
+
+  function showLightboxImage(){
+    const src = galleries[currentGallery][currentIndex];
     document.getElementById("lightbox-img").src = src;
-    document.getElementById("lightbox-img").alt = caption;
+    document.getElementById("lightbox-img").alt = "";
+  }
+
+  function openLightbox(galleryName, index){
+    currentGallery = galleryName;
+    currentIndex = index;
+    showLightboxImage();
     document.getElementById("lightbox").classList.add("open");
   }
 
@@ -324,11 +382,11 @@
     document.getElementById("lightbox").classList.remove("open");
   }
 
-  function scrollCarousel(containerId, direction){
-    const container = document.getElementById(containerId);
-    const card = container.querySelector(".card");
-    const cardWidth = card ? card.offsetWidth + 20 : 230; // 20 = gap
-    container.scrollBy({ left: direction * cardWidth * 2, behavior: "smooth" });
+  function navigateLightbox(event, direction){
+    event.stopPropagation();
+    const items = galleries[currentGallery];
+    currentIndex = (currentIndex + direction + items.length) % items.length;
+    showLightboxImage();
   }
 
   document.addEventListener("keydown", function(e){
@@ -337,8 +395,8 @@
     }
   });
 
-  renderCarousel("design-carousel", designImages);
-  renderCarousel("production-carousel", productionImages);
+  renderCarousel("design");
+  renderCarousel("production");
 </script>
 
 </body>
