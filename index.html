@@ -104,9 +104,15 @@
 
   .carousel{
     display:flex;
+    justify-content:center;
+    align-items:center;
     gap:20px;
     overflow-x:hidden;
     padding:4px 44px 8px;
+    flex:1;
+    min-width:0;
+    -webkit-mask-image:linear-gradient(to right, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+    mask-image:linear-gradient(to right, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
   }
 
   .card{
