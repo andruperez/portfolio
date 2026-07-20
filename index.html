@@ -401,8 +401,46 @@
     }
   });
 
+  // Trackpad/mouse-wheel horizontal drag support. Two-finger swipe on
+  // a trackpad sends mostly horizontal wheel deltas — we listen for
+  // that, and once the accumulated horizontal movement crosses a
+  // small threshold, step the carousel exactly like an arrow click.
+  // A short cooldown after each step prevents one continuous swipe
+  // from firing dozens of steps at once.
+  function enableDragScroll(containerId){
+    const container = document.getElementById(containerId);
+    const galleryName = containerId.startsWith("design") ? "design" : "production";
+    let accumulated = 0;
+    let locked = false;
+
+    container.addEventListener("wheel", function(e){
+      const isHorizontalIntent = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      if(!isHorizontalIntent) return; // let vertical page scroll pass through untouched
+
+      e.preventDefault();
+      if(locked) return;
+
+      accumulated += e.deltaX;
+      const threshold = 60;
+
+      if(accumulated > threshold){
+        scrollCarousel(containerId, 1);
+        accumulated = 0;
+        locked = true;
+        setTimeout(() => { locked = false; }, 350);
+      } else if(accumulated < -threshold){
+        scrollCarousel(containerId, -1);
+        accumulated = 0;
+        locked = true;
+        setTimeout(() => { locked = false; }, 350);
+      }
+    }, { passive: false });
+  }
+
   renderCarousel("design");
   renderCarousel("production");
+  enableDragScroll("design-carousel");
+  enableDragScroll("production-carousel");
 </script>
 
 </body>
